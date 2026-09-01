@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright © 2026 Cristian Camargo Filho
+
 import type { Finding, NormalizedHarness } from "../model.js";
 
 const AMBIGUOUS_PATTERN = /\b(?:maybe|usually|if needed|as appropriate|where possible)\b|\betc\./i;

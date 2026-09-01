@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright © 2026 Cristian Camargo Filho
+
 import type { CoverageDetail, Finding, MetricEvaluation, Metrics, NormalizedHarness } from "../model.js";
 import { getValidationProfile } from "../validation/profiles.js";
 

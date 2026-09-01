@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright © 2026 Cristian Camargo Filho
+
 import { readFile, stat } from "node:fs/promises";
 import type { HarnessCandidate, HarnessFile } from "../model.js";
 
