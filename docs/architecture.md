@@ -1,3 +1,6 @@
+> SPDX-License-Identifier: MPL-2.0
+> Copyright © 2026 Cristian Camargo Filho
+
 # Architecture
 
 `@harness-lens/core` owns domain behavior and structured report contracts. It has no terminal, editor, transport, persistence, or AI-provider dependency.

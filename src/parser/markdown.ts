@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright © 2026 Cristian Camargo Filho
+
 import type { Directive, HarnessFile, Heading, NormalizedHarness } from "../model.js";
 
 const DIRECTIVE_PATTERN = /^\s*(?:[-*+]\s+|\d+[.)]\s+)(.+?)\s*$/;
