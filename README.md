@@ -3,7 +3,14 @@
 
 # @harness-lens/core
 
-Deterministic core for Harness Lens. It discovers, safely loads, normalizes, validates, measures, snapshots, and compares AI-agent harness files.
+Provider-neutral contracts and deterministic analysis for Harness Lens. The
+repository contains the reference Rust engine and retains the TypeScript package
+for existing npm consumers.
+
+| Implementation | Role | Package |
+| --- | --- | --- |
+| [`rust/`](rust/) | Reference domain and analysis engine | `harness-lens-core` |
+| [`src/`](src/) | TypeScript compatibility implementation | `@harness-lens/core` |
 
 Recognized inputs:
 
@@ -31,6 +38,17 @@ discover → load → normalize → validate → measure → snapshot → compar
 
 This `0.0.x` API is intentionally small and may change before `1.0.0`.
 
+## Ecosystem
+
+Core owns pure domain behavior. Integration surfaces live in separate
+repositories and depend inward on these contracts:
+
+- [SDK](https://github.com/harness-lens/sdk) — embedding, configuration, Python, and discovery adapters
+- [CLI](https://github.com/harness-lens/cli) — terminal interface
+- [Language Server](https://github.com/harness-lens/language-server) — editor diagnostics
+- [VS Code](https://github.com/harness-lens/harness-lens-vscode) — editor presentation
+- [Harness Lens](https://github.com/harness-lens/harness-lens) — ecosystem documentation and pinned repository composition
+
 ## Development
 
 ```bash
@@ -38,6 +56,11 @@ npm install
 npm test
 npm run check
 npm pack
+
+cd rust
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
 ```
 
 ## License

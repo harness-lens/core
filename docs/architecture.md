@@ -3,7 +3,10 @@
 
 # Architecture
 
-`@harness-lens/core` owns domain behavior and structured report contracts. It has no terminal, editor, transport, persistence, or AI-provider dependency.
+The Rust `harness-lens-core` crate is the reference engine. The
+`@harness-lens/core` package remains a TypeScript compatibility implementation.
+Both own domain behavior and structured report contracts; neither owns terminal,
+editor, transport, persistence, agent-framework, or AI-provider behavior.
 
 ```text
 discovery → safe loading → Markdown normalization → deterministic validation
@@ -20,3 +23,15 @@ Adapters belong elsewhere:
 - `@harness-lens/vscode`: VS Code UX
 
 Behavioral probes may later compare declared rules with observed agent executions. They remain separate from static validation.
+
+## Dependency direction
+
+```text
+core <- sdk/adapters <- cli
+                    <- language-server <- VS Code
+```
+
+Downstream Rust repositories pin this repository by immutable Git revision until
+the crates are published. The umbrella repository pins each component as a Git
+submodule, making a reproducible ecosystem revision without restoring monorepo
+coupling.

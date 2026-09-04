@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MPL-2.0
+# Copyright © 2026 Cristian Camargo Filho
+
+[package]
+name = "harness-lens-core"
+description = "Provider-neutral domain and analysis engine for Harness Lens"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Cristian Camargo Filho <ccf@cdone.com.br>"]
+license = "MPL-2.0"
+repository = "https://github.com/harness-lens/core"
+homepage = "https://github.com/harness-lens/core"
+readme = "README.md"
+keywords = ["harness", "agents", "configuration", "observability"]
+publish = true
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+
+[lints.rust]
+missing_docs = "warn"
+unsafe_code = "forbid"
