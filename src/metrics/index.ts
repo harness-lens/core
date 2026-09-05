@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2026 Cristian Camargo Filho
 
-import type { CoverageDetail, Finding, MetricEvaluation, Metrics, NormalizedHarness } from "../model.js";
+import type {
+  CoverageDetail,
+  CostDetails,
+  Finding,
+  MetricEvaluation,
+  Metrics,
+  NormalizedHarness,
+  SourceMetrics,
+  ScanOptions,
+} from "../model.js";
 import { getValidationProfile } from "../validation/profiles.js";
+import { findExactDuplicates } from "../validation/exact-duplicates.js";
 
 function notEvaluated<T>(): MetricEvaluation<T> {
   return { status: "not-evaluated", score: null, reference: null, details: null };
@@ -49,13 +59,63 @@ export function calculateMetrics(
   harnesses: NormalizedHarness[],
   findings: Finding[],
   profileId?: string,
+  evaluation: ScanOptions["evaluation"] = {},
 ): Metrics {
+  const invocations = Math.max(1, Math.floor(evaluation.invocations ?? 1));
+  const maxSourceBytes = evaluation.maxSourceBytes ?? 32 * 1024;
+  const maxSourceTokens = evaluation.maxSourceTokens ?? 8_000;
+  const inputRate = evaluation.inputCostPerMillionTokens;
+  const totalTokens = estimateTokens(harnesses);
+  const exactDuplicates = findExactDuplicates(harnesses);
+  const costEvaluated = typeof inputRate === "number" && Number.isFinite(inputRate) && inputRate >= 0;
+  const inputCostPerInvocation = costEvaluated ? totalTokens * inputRate / 1_000_000 : null;
+  const inputCostTotal = inputCostPerInvocation === null ? null : inputCostPerInvocation * invocations;
+  const sourceMetrics: SourceMetrics[] = harnesses.map((harness) => {
+    const tokens = Math.ceil(harness.text.length / 4);
+    return {
+      file: harness.file.path,
+      bytes: harness.file.bytes,
+      tokens,
+      lines: harness.text ? harness.text.split("\n").length : 0,
+      paragraphs: harness.text ? harness.text.split(/\n\s*\n/).filter(Boolean).length : 0,
+      tooLarge: harness.file.bytes > maxSourceBytes,
+      overElaborated: tokens > maxSourceTokens,
+      costPerInvocation: costEvaluated ? tokens * inputRate / 1_000_000 : null,
+      costTotal: costEvaluated ? tokens * inputRate / 1_000_000 * invocations : null,
+    };
+  });
+  const costDetails: CostDetails | null = inputCostPerInvocation === null ? null : {
+    inputTokensPerInvocation: totalTokens,
+    invocations,
+    inputCostPerInvocation,
+    inputCostTotal: inputCostTotal ?? 0,
+    currency: evaluation.currency ?? "USD",
+  };
+
   return {
-    tokens: { count: estimateTokens(harnesses), tokenizer: "heuristic/4-chars" },
-    cost: notEvaluated(),
+    tokens: { count: totalTokens, tokenizer: "heuristic/4-chars" },
+    cost: costDetails === null
+      ? notEvaluated<CostDetails>()
+      : {
+        status: "evaluated",
+        score: null,
+        reference: evaluation.costReference ?? "caller-supplied input rate",
+        details: costDetails,
+      },
     coverage: measureCoverage(harnesses, profileId),
     alignment: notEvaluated(),
     redundancy: measureRedundancy(harnesses),
     conflicts: findings.filter((item) => item.ruleId === "HL031").length,
+    duplicates: {
+      lines: exactDuplicates.filter((duplicate) => duplicate.kind === "line").length,
+      paragraphs: exactDuplicates.filter((duplicate) => duplicate.kind === "paragraph").length,
+    },
+    sources: sourceMetrics,
+    budgets: {
+      maxSourceBytes,
+      maxSourceTokens,
+      tooLarge: sourceMetrics.filter((source) => source.tooLarge).length,
+      overElaborated: sourceMetrics.filter((source) => source.overElaborated).length,
+    },
   };
 }

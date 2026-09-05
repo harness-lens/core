@@ -32,6 +32,40 @@ export async function scanRepository(repository: string, options: ScanOptions = 
 
   const normalized = files.map(parseHarness);
   const findings = [...validateHarnesses(normalized, root), ...loadFindings];
+  const metrics = calculateMetrics(normalized, findings, options.profile, options.evaluation);
+  for (const source of metrics.sources) {
+    if (source.tooLarge) {
+      findings.push({
+        severity: "warn",
+        ruleId: "HL050",
+        message: `Harness source is too large: ${source.bytes} bytes exceeds ${metrics.budgets.maxSourceBytes}`,
+        file: source.file,
+        line: 1,
+        evidence: "soft source-size budget; configure evaluation.maxSourceBytes",
+      });
+    }
+    if (source.overElaborated) {
+      findings.push({
+        severity: "warn",
+        ruleId: "HL051",
+        message: `Harness source is over-elaborated: ${source.tokens} estimated tokens exceeds ${metrics.budgets.maxSourceTokens}`,
+        file: source.file,
+        line: 1,
+        evidence: "soft token-budget heuristic; tokens are estimated as characters / 4",
+      });
+    }
+  }
+  const inputRate = options.evaluation?.inputCostPerMillionTokens;
+  if (typeof inputRate === "number" && (!Number.isFinite(inputRate) || inputRate < 0)) {
+    findings.push({
+      severity: "fail",
+      ruleId: "HL052",
+      message: "Input token price must be finite and non-negative",
+      file: root,
+      line: null,
+      evidence: "cost was not calculated because the caller supplied an invalid price",
+    });
+  }
 
   return {
     schemaVersion: "harness-lens/report/v1",
@@ -39,6 +73,6 @@ export async function scanRepository(repository: string, options: ScanOptions = 
     generatedAt: (options.now?.() ?? new Date()).toISOString(),
     files: files.map(({ path: filePath, kind, scope, bytes }) => ({ path: filePath, kind, scope, bytes })),
     findings,
-    metrics: calculateMetrics(normalized, findings, options.profile),
+    metrics,
   };
 }

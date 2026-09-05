@@ -59,6 +59,7 @@ impl Plugin for RepetitionPlugin {
                             evidence: Some(
                                 "same normalized word appears twice consecutively".to_owned(),
                             ),
+                            related: Vec::new(),
                             source: REPETITION_PLUGIN_ID.to_owned(),
                         });
                     }
@@ -93,6 +94,8 @@ impl Plugin for RepetitionPlugin {
                 name: "harness.adjacent_repetitions".to_owned(),
                 value: finding_count as f64,
                 unit: Some("count".to_owned()),
+                path: None,
+                reference: None,
                 source: REPETITION_PLUGIN_ID.to_owned(),
             }],
             scores: vec![score],
@@ -197,6 +200,8 @@ impl Plugin for IncongruencePlugin {
                 name: "harness.incongruent_instruction_groups".to_owned(),
                 value: conflicting_groups as f64,
                 unit: Some("count".to_owned()),
+                path: None,
+                reference: None,
                 source: INCONGRUENCE_PLUGIN_ID.to_owned(),
             }],
             scores: vec![score],
@@ -246,6 +251,11 @@ fn add_conflict_finding(findings: &mut Vec<Finding>, clause: &Clause, opposite: 
         line: Some(clause.line),
         span: Some(clause.span),
         evidence: Some("same normalized modal target in an overlapping harness scope".to_owned()),
+        related: vec![crate::FindingLocation {
+            path: opposite.path.clone(),
+            line: Some(opposite.line),
+            span: Some(opposite.span),
+        }],
         source: INCONGRUENCE_PLUGIN_ID.to_owned(),
     });
 }

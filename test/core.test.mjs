@@ -54,3 +54,38 @@ test("does not invent coverage or alignment without references", () => fixture(a
   assert.equal(report.metrics.alignment.status, "not-evaluated");
   assert.equal(report.metrics.cost.status, "not-evaluated");
 }));
+
+test("reports exact duplicate lines with both source locations and normalization", () => fixture(async (root) => {
+  await mkdir(path.join(root, "nested"), { recursive: true });
+  await writeFile(path.join(root, "AGENTS.md"), "Adoption, rejection, assumptions, and source links.\n");
+  await writeFile(path.join(root, "nested", "AGENTS.md"), "- adoption,   rejection, assumptions, and source links.\n");
+
+  const report = await scanRepository(root);
+  const duplicate = report.findings.find((finding) => finding.ruleId === "HL032");
+  assert.ok(duplicate);
+  assert.equal(duplicate.file, path.join(root, "nested", "AGENTS.md"));
+  assert.deepEqual(duplicate.related, [{ file: path.join(root, "AGENTS.md"), line: 1 }]);
+  assert.match(duplicate.evidence, /assumption:/);
+  assert.equal(report.metrics.duplicates.lines, 1);
+}));
+
+test("evaluates source budgets and repeated-invocation input cost when configured", () => fixture(async (root) => {
+  await writeFile(path.join(root, "AGENTS.md"), "Run the complete test suite.\n");
+  const report = await scanRepository(root, {
+    evaluation: {
+      invocations: 10,
+      inputCostPerMillionTokens: 2,
+      costReference: "test-model/input-2026",
+      maxSourceBytes: 1,
+      maxSourceTokens: 1,
+    },
+  });
+
+  assert.equal(report.metrics.cost.status, "evaluated");
+  assert.equal(report.metrics.cost.reference, "test-model/input-2026");
+  assert.equal(report.metrics.cost.details.inputTokensPerInvocation, report.metrics.tokens.count);
+  assert.equal(report.metrics.cost.details.invocations, 10);
+  assert.ok(report.metrics.cost.details.inputCostTotal > report.metrics.cost.details.inputCostPerInvocation);
+  assert.ok(report.findings.some((finding) => finding.ruleId === "HL050"));
+  assert.ok(report.findings.some((finding) => finding.ruleId === "HL051"));
+}));

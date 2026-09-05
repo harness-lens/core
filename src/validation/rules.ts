@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2026 Cristian Camargo Filho
 
-import type { Finding, NormalizedHarness } from "../model.js";
+import type { Finding, FindingLocation, NormalizedHarness } from "../model.js";
+import { findExactDuplicates } from "./exact-duplicates.js";
 
 const AMBIGUOUS_PATTERN = /\b(?:maybe|usually|if needed|as appropriate|where possible)\b|\betc\./i;
 const NEGATIVE_PATTERN = /\b(?:must not|never|do not|don't)\b/i;
@@ -14,8 +15,11 @@ function finding(
   file: string,
   line: number | null = null,
   evidence: string | null = null,
+  related: FindingLocation[] = [],
 ): Finding {
-  return { severity, ruleId, message, file, line, evidence };
+  return related.length > 0
+    ? { severity, ruleId, message, file, line, evidence, related }
+    : { severity, ruleId, message, file, line, evidence };
 }
 
 function directiveKey(text: string): string {
@@ -48,6 +52,18 @@ export function validateHarnesses(harnesses: NormalizedHarness[], repository: st
         findings.push(finding("warn", "HL021", "Ambiguous instruction", harness.file.path, directive.line, directive.text));
       }
     }
+  }
+
+  for (const duplicate of findExactDuplicates(harnesses)) {
+    findings.push(finding(
+      "warn",
+      "HL032",
+      `Exact duplicate ${duplicate.kind} repeats ${duplicate.previous.file}:${duplicate.previous.line}`,
+      duplicate.file,
+      duplicate.line,
+      duplicate.evidence,
+      [duplicate.previous],
+    ));
   }
 
   const directives = harnesses.flatMap((harness) => harness.directives.map((directive) => ({

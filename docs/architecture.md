@@ -15,6 +15,15 @@ discovery → safe loading → Markdown normalization → deterministic validati
 
 Rules emit evidence-bearing findings. Metrics that require a reference use `not-evaluated` when none is provided. Structural quality is not presented as proof of behavioral effectiveness.
 
+Exact duplicate findings carry the later source location plus a `related`
+location for the earlier match. Token metrics use a documented heuristic and
+cost metrics require caller-supplied pricing and invocation count; this keeps
+repeated harness calls visible without claiming model-specific tokenizer or
+pricing accuracy.
+
+The [rule index](rules.md) is the canonical map from `HL` codes to behavior
+and source links.
+
 Adapters belong elsewhere:
 
 - `@harness-lens/cli`: terminal and future TUI

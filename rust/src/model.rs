@@ -99,6 +99,23 @@ pub struct TextSpan {
     pub end: usize,
 }
 
+/// A second source location related to an evidence-bearing finding.
+///
+/// The primary location remains on [`Finding`]. This small relation keeps
+/// duplicate and conflict diagnostics navigable without copying source text
+/// into the report.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FindingLocation {
+    /// Related source path.
+    pub path: PathBuf,
+    /// One-based line number, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+    /// Exact UTF-8 byte range, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<TextSpan>,
+}
+
 /// Deterministic evidence emitted by the core or a plugin.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Finding {
@@ -120,6 +137,9 @@ pub struct Finding {
     /// Minimal supporting evidence, when safe to expose.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub evidence: Option<String>,
+    /// Other source locations needed to understand this finding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related: Vec<FindingLocation>,
     /// Core or plugin identifier that produced this finding.
     pub source: String,
 }
@@ -134,6 +154,12 @@ pub struct Metric {
     /// Optional unit or profile identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+    /// Source path for a per-file measurement, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    /// Caller-supplied pricing or evaluation reference, when applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
     /// Core or plugin identifier that produced this metric.
     pub source: String,
 }

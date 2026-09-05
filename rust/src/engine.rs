@@ -7,6 +7,8 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use crate::evaluation::EvaluationPlugin;
+use crate::exact_duplicates::ExactDuplicatePlugin;
 use crate::text_analysis::{IncongruencePlugin, RepetitionPlugin};
 use crate::{
     AnalysisReport, Finding, HarnessLensConfig, HarnessSource, Metric, Plugin, PluginContext,
@@ -51,7 +53,13 @@ impl Default for AnalysisEngine {
             .register(RepetitionPlugin)
             .expect("built-in plugin id must be valid");
         engine
+            .register(ExactDuplicatePlugin)
+            .expect("built-in plugin id must be valid");
+        engine
             .register(IncongruencePlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(EvaluationPlugin)
             .expect("built-in plugin id must be valid");
         engine
     }
@@ -287,12 +295,15 @@ impl Plugin for InventoryPlugin {
                 line: None,
                 span: None,
                 evidence: None,
+                related: Vec::new(),
                 source: INVENTORY_PLUGIN_ID.to_owned(),
             }],
             metrics: vec![Metric {
                 name: "harness.sources".to_owned(),
                 value: source_count as f64,
                 unit: Some("count".to_owned()),
+                path: None,
+                reference: None,
                 source: INVENTORY_PLUGIN_ID.to_owned(),
             }],
             scores: vec![score],
