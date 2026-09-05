@@ -6,15 +6,19 @@
 mod config;
 mod conventions;
 mod engine;
+mod evaluation;
+mod exact_duplicates;
 mod model;
 mod plugin;
 pub mod statistics;
 mod text_analysis;
 
-pub use config::{DiscoveryConfig, HarnessLensConfig, IntegrationConfig, PluginConfig};
+pub use config::{
+    DiscoveryConfig, EvaluationConfig, HarnessLensConfig, IntegrationConfig, PluginConfig,
+};
 pub use engine::{AnalysisEngine, RegistrationError};
 pub use model::{
-    AnalysisReport, ConfidenceEstimate, Finding, HarnessSource, HarnessSourceKind,
+    AnalysisReport, ConfidenceEstimate, Finding, FindingLocation, HarnessSource, HarnessSourceKind,
     IncompleteReason, Metric, PluginExecution, PluginExecutionStatus, ScanCompleteness,
     ScanSummary, Score, ScoreCategory, ScoreError, ScoreMethod, ScoreSummary, Severity,
     SourceRecord, TextSpan,

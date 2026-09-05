@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// Provider-neutral configuration consumed by the analysis core.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HarnessLensConfig {
     /// Configuration schema version.
@@ -17,6 +17,8 @@ pub struct HarnessLensConfig {
     pub plugins: Vec<PluginConfig>,
     /// Outbound adapter activation and opaque string options.
     pub integrations: Vec<IntegrationConfig>,
+    /// Resource and cost evaluation policy.
+    pub evaluation: EvaluationConfig,
 }
 
 impl Default for HarnessLensConfig {
@@ -26,6 +28,39 @@ impl Default for HarnessLensConfig {
             discovery: DiscoveryConfig::default(),
             plugins: Vec::new(),
             integrations: Vec::new(),
+            evaluation: EvaluationConfig::default(),
+        }
+    }
+}
+
+/// Resource thresholds and optional caller-supplied token pricing.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct EvaluationConfig {
+    /// Number of times the discovered harness is expected to be injected.
+    pub invocations: usize,
+    /// Input price in currency units per one million estimated tokens.
+    /// `None` deliberately leaves monetary cost unevaluated.
+    pub input_cost_per_million_tokens: Option<f64>,
+    /// Optional provider/model or benchmark identifier for the price.
+    pub cost_reference: Option<String>,
+    /// Currency label attached to calculated cost metrics.
+    pub currency: String,
+    /// Soft per-source byte budget used for size findings.
+    pub max_source_bytes: u64,
+    /// Soft per-source token budget used for over-elaboration findings.
+    pub max_source_tokens: usize,
+}
+
+impl Default for EvaluationConfig {
+    fn default() -> Self {
+        Self {
+            invocations: 1,
+            input_cost_per_million_tokens: None,
+            cost_reference: None,
+            currency: "USD".to_owned(),
+            max_source_bytes: 32 * 1024,
+            max_source_tokens: 8_000,
         }
     }
 }

@@ -45,6 +45,12 @@ export interface Finding {
   file: string;
   line: number | null;
   evidence: string | null;
+  related?: FindingLocation[];
+}
+
+export interface FindingLocation {
+  file: string;
+  line: number | null;
 }
 
 export interface MetricEvaluation<TDetails = unknown> {
@@ -60,16 +66,47 @@ export interface CoverageDetail {
   status: "present" | "missing";
 }
 
+export interface SourceMetrics {
+  file: string;
+  bytes: number;
+  tokens: number;
+  lines: number;
+  paragraphs: number;
+  tooLarge: boolean;
+  overElaborated: boolean;
+  costPerInvocation: number | null;
+  costTotal: number | null;
+}
+
+export interface CostDetails {
+  inputTokensPerInvocation: number;
+  invocations: number;
+  inputCostPerInvocation: number;
+  inputCostTotal: number;
+  currency: string;
+}
+
 export interface Metrics {
   tokens: {
     count: number;
     tokenizer: "heuristic/4-chars";
   };
-  cost: MetricEvaluation;
+  cost: MetricEvaluation<CostDetails>;
   coverage: MetricEvaluation<CoverageDetail[]>;
   alignment: MetricEvaluation;
   redundancy: number;
   conflicts: number;
+  duplicates: {
+    lines: number;
+    paragraphs: number;
+  };
+  sources: SourceMetrics[];
+  budgets: {
+    maxSourceBytes: number;
+    maxSourceTokens: number;
+    tooLarge: number;
+    overElaborated: number;
+  };
 }
 
 export interface HarnessReport {
@@ -85,6 +122,14 @@ export interface ScanOptions {
   profile?: string;
   maxFileBytes?: number;
   now?: () => Date;
+  evaluation?: {
+    invocations?: number;
+    inputCostPerMillionTokens?: number;
+    costReference?: string;
+    currency?: string;
+    maxSourceBytes?: number;
+    maxSourceTokens?: number;
+  };
 }
 
 export interface ReportComparison {

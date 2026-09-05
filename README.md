@@ -28,7 +28,33 @@ const report = await scanRepository(process.cwd(), {
 });
 ```
 
-Coverage is evaluated only when an explicit profile is selected. Alignment and cost remain `not-evaluated` until callers supply a concrete reference. Optional AI interpreters consume the completed report and cannot change deterministic metrics.
+For repeated-call evaluation, callers may provide an input price and expected
+invocation count:
+
+```ts
+const report = await scanRepository(process.cwd(), {
+  evaluation: {
+    inputCostPerMillionTokens: 2.5,
+    invocations: 100,
+    costReference: "provider/model-input-rate",
+  },
+});
+```
+
+Coverage is evaluated only when an explicit profile is selected. Token cost remains
+`not-evaluated` until callers supply an input price; when supplied, the report
+calculates input cost per invocation and across the configured invocation count.
+The token estimate is a heuristic (`ceil(character count / 4)`) and is not a
+replacement for the target model tokenizer.
+
+Exact duplicate rule `HL032` reports the later location and a `related` earlier
+location. Its normalization assumption is explicit in finding evidence: case is
+folded, surrounding and repeated whitespace are normalized, Markdown markers
+are removed, and fenced code is ignored. `HL050` and `HL051` identify sources
+over soft byte and token budgets, respectively.
+
+See the [rule index](docs/rules.md) for every stable `HL` finding code,
+assumption, and implementation source.
 
 ## Pipeline
 
