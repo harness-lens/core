@@ -410,28 +410,36 @@ fn extract_directives(source: &crate::HarnessSource) -> Vec<Directive> {
         let Some((text, local_start)) = instruction_text(line) else {
             continue;
         };
-        let normalized = normalize_clause(text);
-        let Some((polarity, target)) = parse_directive(&normalized) else {
-            continue;
-        };
-        let terms = canonical_target_terms(target);
-        if terms.len() < 3 {
-            continue;
-        }
+        for segment in directive_segments(text) {
+            let normalized = normalize_clause(segment);
+            let Some((polarity, target)) = parse_directive(&normalized) else {
+                continue;
+            };
+            let terms = canonical_target_terms(target);
+            if terms.len() < 3 {
+                continue;
+            }
 
-        directives.push(Directive {
-            polarity,
-            terms,
-            path: source.path.clone(),
-            scope: source.scope.clone(),
-            line: line_number,
-            span: TextSpan {
-                start: line_start + local_start,
-                end: line_start + local_start + text.len(),
-            },
-        });
+            directives.push(Directive {
+                polarity,
+                terms,
+                path: source.path.clone(),
+                scope: source.scope.clone(),
+                line: line_number,
+                span: TextSpan {
+                    start: line_start + local_start,
+                    end: line_start + local_start + text.len(),
+                },
+            });
+        }
     }
     directives
+}
+
+fn directive_segments(text: &str) -> impl Iterator<Item = &str> {
+    text.split([',', ';'])
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
 }
 
 fn parse_directive(text: &str) -> Option<(Polarity, &str)> {
@@ -691,7 +699,7 @@ mod tests {
     fn redundancy_matches_rephrased_instruction_intent() {
         let sources = [source(
             "AGENTS.md",
-            "try to avoid using branches names like codex and others\ndo not use branches like codex and others\navoid using branches like codex and others\n",
+            "try to avoid using branches names like codex and others, do not use branches like codex and others, avoid using branches like codex and others\n",
         )];
         let config = HarnessLensConfig::default();
         let output = RedundancyPlugin
@@ -700,8 +708,16 @@ mod tests {
 
         assert_eq!(output.findings.len(), 2);
         assert_eq!(output.findings[0].rule_id, "HL030");
-        assert_eq!(output.findings[0].line, Some(2));
-        assert_eq!(output.findings[1].line, Some(3));
+        assert_eq!(output.findings[0].line, Some(1));
+        assert_eq!(output.findings[1].line, Some(1));
+        assert_eq!(output.findings[0].span, output.findings[1].span);
+        assert_eq!(
+            output.findings[0].span,
+            Some(TextSpan {
+                start: 0,
+                end: sources[0].content.trim_end().len(),
+            })
+        );
         assert_eq!(output.scores[0].method, ScoreMethod::Heuristic);
     }
 
