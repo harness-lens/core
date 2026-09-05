@@ -4,6 +4,7 @@
 #![doc = include_str!("../README.md")]
 
 mod config;
+mod conventions;
 mod engine;
 mod evaluation;
 mod exact_duplicates;

@@ -8,15 +8,17 @@ source and finding models, normalized evidence scores, deterministic statistical
 helpers, plugin contracts, report-sink contracts, and failure-isolated
 orchestration.
 
-Built-in plugins report deterministic adjacent repetition, exact duplicate
-lines/paragraphs with related source locations, conservative opposite-modal
-instructions, and source-size/token-cost evaluation. Findings use UTF-8 byte
-spans so adapters can convert them without coupling the core to LSP or an
-editor. Monetary cost is calculated only when a caller supplies a price and is
-explicitly modeled as input injection cost per invocation.
+Built-in plugins report deterministic adjacent repetition, conservative
+same-intent instruction redundancy, opposite-modal instructions, provider
+instruction-file conventions, and portable Agent Skills schema problems.
+It also validates the documented structure of project-local Codex TOML and
+command-rule assets.
+Findings use UTF-8 byte spans so adapters can convert them without coupling the
+core to LSP or an editor. The checked conventions and primary sources are
+documented in [`docs/conventions.md`](docs/conventions.md).
 
-This crate does not read files, parse TOML, call networks, execute agents, import
-model providers, or know about Python and editors.
+This crate does not read files, call networks, execute agents, import model
+providers, or know about Python and editors.
 
 ## Development
 

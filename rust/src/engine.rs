@@ -10,6 +10,10 @@ use std::time::Instant;
 use crate::evaluation::EvaluationPlugin;
 use crate::exact_duplicates::ExactDuplicatePlugin;
 use crate::text_analysis::{IncongruencePlugin, RepetitionPlugin};
+use crate::conventions::{
+    CodexAssetConventionsPlugin, InstructionConventionsPlugin, SkillConventionsPlugin,
+};
+use crate::text_analysis::{IncongruencePlugin, RedundancyPlugin, RepetitionPlugin};
 use crate::{
     AnalysisReport, Finding, HarnessLensConfig, HarnessSource, Metric, Plugin, PluginContext,
     PluginExecution, PluginExecutionStatus, PluginMetadata, PluginOutput, Score, ScoreCategory,
@@ -50,10 +54,20 @@ impl Default for AnalysisEngine {
             .register(InventoryPlugin)
             .expect("built-in plugin id must be valid");
         engine
+            .register(InstructionConventionsPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(SkillConventionsPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(CodexAssetConventionsPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
             .register(RepetitionPlugin)
             .expect("built-in plugin id must be valid");
         engine
             .register(ExactDuplicatePlugin)
+            .register(RedundancyPlugin)
             .expect("built-in plugin id must be valid");
         engine
             .register(IncongruencePlugin)

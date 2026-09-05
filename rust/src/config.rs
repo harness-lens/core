@@ -104,11 +104,21 @@ pub struct DiscoveryConfig {
 impl Default for DiscoveryConfig {
     fn default() -> Self {
         Self {
-            file_names: vec!["AGENTS.md", "CLAUDE.md", "GEMINI.md"]
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
-            path_suffixes: vec![".github/copilot-instructions.md".to_owned()],
+            file_names: vec![
+                "AGENTS.md",
+                "AGENTS.override.md",
+                "CLAUDE.md",
+                "CLAUDE.local.md",
+                "GEMINI.md",
+                "SKILL.md",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+            path_suffixes: vec![
+                ".github/copilot-instructions.md".to_owned(),
+                ".codex/config.toml".to_owned(),
+            ],
             directory_suffixes: vec![".cursor/rules".to_owned()],
             ignored_directories: vec![
                 ".git",
