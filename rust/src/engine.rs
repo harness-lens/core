@@ -7,12 +7,11 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::evaluation::EvaluationPlugin;
-use crate::exact_duplicates::ExactDuplicatePlugin;
-use crate::text_analysis::{IncongruencePlugin, RepetitionPlugin};
 use crate::conventions::{
     CodexAssetConventionsPlugin, InstructionConventionsPlugin, SkillConventionsPlugin,
 };
+use crate::evaluation::EvaluationPlugin;
+use crate::exact_duplicates::ExactDuplicatePlugin;
 use crate::text_analysis::{IncongruencePlugin, RedundancyPlugin, RepetitionPlugin};
 use crate::{
     AnalysisReport, Finding, HarnessLensConfig, HarnessSource, Metric, Plugin, PluginContext,
@@ -67,6 +66,8 @@ impl Default for AnalysisEngine {
             .expect("built-in plugin id must be valid");
         engine
             .register(ExactDuplicatePlugin)
+            .expect("built-in plugin id must be valid");
+        engine
             .register(RedundancyPlugin)
             .expect("built-in plugin id must be valid");
         engine

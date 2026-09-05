@@ -154,6 +154,7 @@ impl Plugin for RedundancyPlugin {
                         "same directive polarity with substantially overlapping normalized target terms"
                             .to_owned(),
                     ),
+                    related: Vec::new(),
                     source: REDUNDANCY_PLUGIN_ID.to_owned(),
                 });
             }
@@ -191,6 +192,8 @@ impl Plugin for RedundancyPlugin {
                 name: "harness.redundant_instructions".to_owned(),
                 value: finding_count as f64,
                 unit: Some("count".to_owned()),
+                path: None,
+                reference: None,
                 source: REDUNDANCY_PLUGIN_ID.to_owned(),
             }],
             scores: vec![score],

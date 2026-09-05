@@ -603,6 +603,8 @@ fn convention_output(
             name: metric_name.to_owned(),
             value: finding_count as f64,
             unit: Some("count".to_owned()),
+            path: None,
+            reference: None,
             source: plugin_id.to_owned(),
         }],
         scores: vec![score],
@@ -626,6 +628,7 @@ fn source_finding(
         line: location.0,
         span: location.1,
         evidence: Some(evidence.into()),
+        related: Vec::new(),
         source: plugin_id.to_owned(),
     }
 }
