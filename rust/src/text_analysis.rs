@@ -30,6 +30,9 @@ impl Plugin for RepetitionPlugin {
         let mut compared_pairs = 0_usize;
 
         for source in context.sources {
+            if !is_natural_language_source(source) {
+                continue;
+            }
             let mut in_fence = false;
             for (line_number, line_start, line) in source_lines(&source.content) {
                 if is_fence(line) {
@@ -357,6 +360,9 @@ fn scopes_overlap(left: &std::path::Path, right: &std::path::Path) -> bool {
 }
 
 fn extract_clauses(source: &crate::HarnessSource) -> Vec<Clause> {
+    if !is_natural_language_source(source) {
+        return Vec::new();
+    }
     let mut clauses = Vec::new();
     let mut in_fence = false;
     for (line_number, line_start, line) in source_lines(&source.content) {
@@ -396,6 +402,9 @@ fn extract_clauses(source: &crate::HarnessSource) -> Vec<Clause> {
 }
 
 fn extract_directives(source: &crate::HarnessSource) -> Vec<Directive> {
+    if !is_natural_language_source(source) {
+        return Vec::new();
+    }
     let mut directives = Vec::new();
     let mut in_fence = false;
     for (line_number, line_start, line) in source_lines(&source.content) {
@@ -594,6 +603,14 @@ fn source_lines(content: &str) -> impl Iterator<Item = (usize, usize, &str)> {
 fn is_fence(line: &str) -> bool {
     let trimmed = line.trim_start();
     trimmed.starts_with("```") || trimmed.starts_with("~~~")
+}
+
+fn is_natural_language_source(source: &crate::HarnessSource) -> bool {
+    source
+        .path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| matches!(extension, "md" | "mdc"))
 }
 
 #[derive(Debug)]
