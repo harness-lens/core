@@ -7,6 +7,9 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use crate::conventions::{
+    CodexAssetConventionsPlugin, InstructionConventionsPlugin, SkillConventionsPlugin,
+};
 use crate::text_analysis::{IncongruencePlugin, RedundancyPlugin, RepetitionPlugin};
 use crate::{
     AnalysisReport, Finding, HarnessLensConfig, HarnessSource, Metric, Plugin, PluginContext,
@@ -46,6 +49,15 @@ impl Default for AnalysisEngine {
         let mut engine = Self::empty();
         engine
             .register(InventoryPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(InstructionConventionsPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(SkillConventionsPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(CodexAssetConventionsPlugin)
             .expect("built-in plugin id must be valid");
         engine
             .register(RepetitionPlugin)
