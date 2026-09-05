@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright © 2026 Cristian Camargo Filho
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     Finding, Metric, Plugin, PluginContext, PluginError, PluginMetadata, PluginOutput, Score,
@@ -9,6 +9,7 @@ use crate::{
 };
 
 const REPETITION_PLUGIN_ID: &str = "harness-lens.repetition";
+const REDUNDANCY_PLUGIN_ID: &str = "harness-lens.redundancy";
 const INCONGRUENCE_PLUGIN_ID: &str = "harness-lens.incongruence";
 
 pub(crate) struct RepetitionPlugin;
@@ -94,6 +95,97 @@ impl Plugin for RepetitionPlugin {
                 value: finding_count as f64,
                 unit: Some("count".to_owned()),
                 source: REPETITION_PLUGIN_ID.to_owned(),
+            }],
+            scores: vec![score],
+        })
+    }
+}
+
+pub(crate) struct RedundancyPlugin;
+
+impl Plugin for RedundancyPlugin {
+    fn metadata(&self) -> PluginMetadata {
+        PluginMetadata {
+            id: REDUNDANCY_PLUGIN_ID.to_owned(),
+            name: "Redundant instruction intent".to_owned(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            capabilities: vec!["text.redundancy".to_owned()],
+            default_enabled: true,
+        }
+    }
+
+    fn analyze(&self, context: &PluginContext<'_>) -> Result<PluginOutput, PluginError> {
+        let directives = context
+            .sources
+            .iter()
+            .flat_map(extract_directives)
+            .collect::<Vec<_>>();
+        let mut seen = Vec::new();
+        let mut findings = Vec::new();
+        let mut compared_pairs = 0_usize;
+
+        for directive in directives {
+            let previous = seen.iter().find(|previous: &&Directive| {
+                compared_pairs += 1;
+                previous.polarity == directive.polarity
+                    && scopes_overlap(&previous.scope, &directive.scope)
+                    && targets_substantially_overlap(&previous.terms, &directive.terms)
+            });
+
+            if let Some(previous) = previous {
+                findings.push(Finding {
+                    severity: Severity::Warning,
+                    rule_id: "HL030".to_owned(),
+                    message: format!(
+                        "Instruction repeats earlier intent at {}:{}",
+                        previous.path.display(),
+                        previous.line
+                    ),
+                    path: Some(directive.path.clone()),
+                    line: Some(directive.line),
+                    span: Some(directive.span),
+                    evidence: Some(
+                        "same directive polarity with substantially overlapping normalized target terms"
+                            .to_owned(),
+                    ),
+                    source: REDUNDANCY_PLUGIN_ID.to_owned(),
+                });
+            }
+            seen.push(directive);
+        }
+
+        let finding_count = findings.len();
+        let message = if finding_count == 0 {
+            "No substantially redundant instructions found"
+        } else {
+            "Substantially redundant instructions found"
+        };
+        let mut score = Score::new(
+            "harness.redundancy_free",
+            ScoreCategory::Quality,
+            ScoreMethod::Heuristic,
+            f64::from(finding_count == 0),
+            1.0,
+            message,
+            REDUNDANCY_PLUGIN_ID,
+        )
+        .expect("built-in score is normalized");
+        score.sample_size = Some(compared_pairs);
+        score.evidence.insert(
+            "assumption".to_owned(),
+            "same-polarity directives are redundant when normalized target-term coverage is at least 80% and Jaccard similarity is at least 70%".to_owned(),
+        );
+        score
+            .evidence
+            .insert("finding_count".to_owned(), finding_count.to_string());
+
+        Ok(PluginOutput {
+            findings,
+            metrics: vec![Metric {
+                name: "harness.redundant_instructions".to_owned(),
+                value: finding_count as f64,
+                unit: Some("count".to_owned()),
+                source: REDUNDANCY_PLUGIN_ID.to_owned(),
             }],
             scores: vec![score],
         })
@@ -227,6 +319,16 @@ struct Clause {
     span: TextSpan,
 }
 
+#[derive(Clone, Debug)]
+struct Directive {
+    polarity: Polarity,
+    terms: BTreeSet<String>,
+    path: std::path::PathBuf,
+    scope: std::path::PathBuf,
+    line: usize,
+    span: TextSpan,
+}
+
 #[derive(Default)]
 struct ModalGroup {
     positive: Vec<Clause>,
@@ -291,6 +393,120 @@ fn extract_clauses(source: &crate::HarnessSource) -> Vec<Clause> {
         });
     }
     clauses
+}
+
+fn extract_directives(source: &crate::HarnessSource) -> Vec<Directive> {
+    let mut directives = Vec::new();
+    let mut in_fence = false;
+    for (line_number, line_start, line) in source_lines(&source.content) {
+        if is_fence(line) {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+
+        let Some((text, local_start)) = instruction_text(line) else {
+            continue;
+        };
+        let normalized = normalize_clause(text);
+        let Some((polarity, target)) = parse_directive(&normalized) else {
+            continue;
+        };
+        let terms = canonical_target_terms(target);
+        if terms.len() < 3 {
+            continue;
+        }
+
+        directives.push(Directive {
+            polarity,
+            terms,
+            path: source.path.clone(),
+            scope: source.scope.clone(),
+            line: line_number,
+            span: TextSpan {
+                start: line_start + local_start,
+                end: line_start + local_start + text.len(),
+            },
+        });
+    }
+    directives
+}
+
+fn parse_directive(text: &str) -> Option<(Polarity, &str)> {
+    let text = text.strip_prefix("you ").unwrap_or(text);
+    let cases = [
+        ("try to avoid ", Polarity::Negative),
+        ("please avoid ", Polarity::Negative),
+        ("do not ", Polarity::Negative),
+        ("don't ", Polarity::Negative),
+        ("must not ", Polarity::Negative),
+        ("avoid ", Polarity::Negative),
+        ("never ", Polarity::Negative),
+        ("always ", Polarity::Positive),
+        ("must ", Polarity::Positive),
+    ];
+    cases
+        .iter()
+        .find_map(|(prefix, polarity)| text.strip_prefix(prefix).map(|target| (*polarity, target)))
+}
+
+fn canonical_target_terms(target: &str) -> BTreeSet<String> {
+    words(target)
+        .into_iter()
+        .filter(|word| word.has_alphabetic)
+        .map(|word| canonical_term(&word.normalized))
+        .filter(|term| !is_filler_term(term))
+        .collect()
+}
+
+fn canonical_term(term: &str) -> String {
+    match term {
+        "used" | "uses" | "using" => return "use".to_owned(),
+        _ => {}
+    }
+    if let Some(stem) = term.strip_suffix("ies") {
+        return format!("{stem}y");
+    }
+    for suffix in ["ches", "shes", "xes", "zes"] {
+        if let Some(stem) = term.strip_suffix(suffix) {
+            return format!("{stem}{}", &suffix[..suffix.len() - 2]);
+        }
+    }
+    if term.len() > 3 && !term.ends_with("ss") {
+        if let Some(stem) = term.strip_suffix('s') {
+            return stem.to_owned();
+        }
+    }
+    term.to_owned()
+}
+
+fn is_filler_term(term: &str) -> bool {
+    matches!(
+        term,
+        "a" | "an"
+            | "and"
+            | "be"
+            | "for"
+            | "in"
+            | "like"
+            | "of"
+            | "or"
+            | "other"
+            | "others"
+            | "please"
+            | "the"
+            | "to"
+            | "try"
+    )
+}
+
+fn targets_substantially_overlap(left: &BTreeSet<String>, right: &BTreeSet<String>) -> bool {
+    let intersection = left.intersection(right).count();
+    let minimum = left.len().min(right.len());
+    let union = left.union(right).count();
+    intersection * 10 >= minimum * 8 && intersection * 10 >= union * 7
 }
 
 fn parse_modal(text: &str) -> Option<(ModalFamily, Polarity, String)> {
@@ -465,6 +681,66 @@ mod tests {
         let sources = [source("AGENTS.md", "Scores stay in [0.0, 1.0].\n")];
         let config = HarnessLensConfig::default();
         let output = RepetitionPlugin
+            .analyze(&context(&sources, &config))
+            .unwrap();
+
+        assert!(output.findings.is_empty());
+    }
+
+    #[test]
+    fn redundancy_matches_rephrased_instruction_intent() {
+        let sources = [source(
+            "AGENTS.md",
+            "try to avoid using branches names like codex and others\ndo not use branches like codex and others\navoid using branches like codex and others\n",
+        )];
+        let config = HarnessLensConfig::default();
+        let output = RedundancyPlugin
+            .analyze(&context(&sources, &config))
+            .unwrap();
+
+        assert_eq!(output.findings.len(), 2);
+        assert_eq!(output.findings[0].rule_id, "HL030");
+        assert_eq!(output.findings[0].line, Some(2));
+        assert_eq!(output.findings[1].line, Some(3));
+        assert_eq!(output.scores[0].method, ScoreMethod::Heuristic);
+    }
+
+    #[test]
+    fn redundancy_does_not_match_different_targets_or_polarities() {
+        let sources = [source(
+            "AGENTS.md",
+            "Avoid using branches named codex.\nAvoid publishing production release artifacts.\nAlways use branches named codex.\n",
+        )];
+        let config = HarnessLensConfig::default();
+        let output = RedundancyPlugin
+            .analyze(&context(&sources, &config))
+            .unwrap();
+
+        assert!(output.findings.is_empty());
+    }
+
+    #[test]
+    fn redundancy_does_not_cross_disjoint_sibling_scopes() {
+        let sources = [
+            source("frontend/AGENTS.md", "Avoid using branches named codex.\n"),
+            source("backend/AGENTS.md", "Do not use branch names like codex.\n"),
+        ];
+        let config = HarnessLensConfig::default();
+        let output = RedundancyPlugin
+            .analyze(&context(&sources, &config))
+            .unwrap();
+
+        assert!(output.findings.is_empty());
+    }
+
+    #[test]
+    fn redundancy_ignores_fenced_code() {
+        let sources = [source(
+            "AGENTS.md",
+            "```text\nAvoid using branches named codex.\nDo not use branch names like codex.\n```\n",
+        )];
+        let config = HarnessLensConfig::default();
+        let output = RedundancyPlugin
             .analyze(&context(&sources, &config))
             .unwrap();
 

@@ -7,7 +7,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use crate::text_analysis::{IncongruencePlugin, RepetitionPlugin};
+use crate::text_analysis::{IncongruencePlugin, RedundancyPlugin, RepetitionPlugin};
 use crate::{
     AnalysisReport, Finding, HarnessLensConfig, HarnessSource, Metric, Plugin, PluginContext,
     PluginExecution, PluginExecutionStatus, PluginMetadata, PluginOutput, Score, ScoreCategory,
@@ -49,6 +49,9 @@ impl Default for AnalysisEngine {
             .expect("built-in plugin id must be valid");
         engine
             .register(RepetitionPlugin)
+            .expect("built-in plugin id must be valid");
+        engine
+            .register(RedundancyPlugin)
             .expect("built-in plugin id must be valid");
         engine
             .register(IncongruencePlugin)
