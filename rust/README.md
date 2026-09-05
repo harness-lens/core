@@ -8,9 +8,10 @@ source and finding models, normalized evidence scores, deterministic statistical
 helpers, plugin contracts, report-sink contracts, and failure-isolated
 orchestration.
 
-Built-in plugins report deterministic adjacent repetition and conservative,
-explicitly heuristic opposite-modal instructions. Findings use UTF-8 byte spans
-so adapters can convert them without coupling the core to LSP or an editor.
+Built-in plugins report deterministic adjacent repetition, conservative
+same-intent instruction redundancy, and explicitly heuristic opposite-modal
+instructions. Findings use UTF-8 byte spans so adapters can convert them without
+coupling the core to LSP or an editor.
 
 This crate does not read files, parse TOML, call networks, execute agents, import
 model providers, or know about Python and editors.
