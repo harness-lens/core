@@ -210,6 +210,99 @@ fn check_instruction_source(source: &HarnessSource, findings: &mut Vec<Finding>)
             )),
         }
     }
+
+    if is_claude_agent(source) || is_github_agent(source) {
+        check_markdown_agent(source, findings);
+    }
+}
+
+fn check_markdown_agent(source: &HarnessSource, findings: &mut Vec<Finding>) {
+    let frontmatter = match parse_frontmatter(&source.content) {
+        Ok(frontmatter) => frontmatter,
+        Err(error) => {
+            findings.push(source_finding(
+                source,
+                Severity::Error,
+                "HL120",
+                "Agent profile requires valid YAML frontmatter",
+                (Some(error.line), line_span(&source.content, error.line)),
+                error.message,
+                INSTRUCTION_PLUGIN_ID,
+            ));
+            return;
+        }
+    };
+
+    if string_field(&frontmatter.value, "description")
+        .is_none_or(|description| description.trim().is_empty())
+    {
+        findings.push(yaml_field_finding(
+            source,
+            Severity::Error,
+            "HL121",
+            "Agent profile requires a non-empty description",
+            "description",
+            "the provider uses description to identify the agent's purpose and delegation scope",
+            INSTRUCTION_PLUGIN_ID,
+        ));
+    }
+
+    if is_claude_agent(source)
+        && string_field(&frontmatter.value, "name").is_none_or(|name| {
+            name.is_empty()
+                || name.starts_with('-')
+                || name.ends_with('-')
+                || !name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+        })
+    {
+        findings.push(yaml_field_finding(
+            source,
+            Severity::Error,
+            "HL122",
+            "Claude agent requires a lowercase name using letters and hyphens",
+            "name",
+            "Anthropic requires name and description in Claude subagent frontmatter",
+            INSTRUCTION_PLUGIN_ID,
+        ));
+    }
+
+    if frontmatter.body.trim().is_empty() {
+        findings.push(source_finding(
+            source,
+            Severity::Error,
+            "HL123",
+            "Agent instruction body is empty",
+            (
+                Some(frontmatter.body_line),
+                Some(TextSpan {
+                    start: frontmatter.body_start,
+                    end: frontmatter.body_start,
+                }),
+            ),
+            "the Markdown body defines the agent's behavior",
+            INSTRUCTION_PLUGIN_ID,
+        ));
+    }
+
+    if is_github_agent(source) && frontmatter.body.chars().count() > 30_000 {
+        findings.push(source_finding(
+            source,
+            Severity::Error,
+            "HL124",
+            "GitHub custom-agent prompt exceeds 30,000 characters",
+            (
+                Some(frontmatter.body_line),
+                Some(TextSpan {
+                    start: frontmatter.body_start,
+                    end: frontmatter.body_start,
+                }),
+            ),
+            "GitHub limits the Markdown prompt below agent frontmatter to 30,000 characters",
+            INSTRUCTION_PLUGIN_ID,
+        ));
+    }
 }
 
 fn check_vague_language(source: &HarnessSource, findings: &mut Vec<Finding>) {
@@ -544,6 +637,26 @@ fn field_finding(
     field: &str,
     evidence: &str,
 ) -> Finding {
+    yaml_field_finding(
+        source,
+        Severity::Error,
+        rule_id,
+        message,
+        field,
+        evidence,
+        SKILL_PLUGIN_ID,
+    )
+}
+
+fn yaml_field_finding(
+    source: &HarnessSource,
+    severity: Severity,
+    rule_id: &str,
+    message: impl Into<String>,
+    field: &str,
+    evidence: &str,
+    plugin_id: &str,
+) -> Finding {
     let (line, span) = field_location(&source.content, field).unwrap_or_else(|| {
         (
             1,
@@ -552,12 +665,12 @@ fn field_finding(
     });
     source_finding(
         source,
-        Severity::Error,
+        severity,
         rule_id,
         message,
         (Some(line), Some(span)),
         evidence,
-        SKILL_PLUGIN_ID,
+        plugin_id,
     )
 }
 
@@ -757,6 +870,18 @@ fn is_codex_asset(source: &HarnessSource) -> bool {
 
 fn normalized_path(source: &HarnessSource) -> String {
     source.path.to_string_lossy().replace('\\', "/")
+}
+
+fn is_claude_agent(source: &HarnessSource) -> bool {
+    let path = normalized_path(source);
+    (path.starts_with(".claude/agents/") || path.contains("/.claude/agents/"))
+        && file_name(source).is_some_and(|name| name.ends_with(".md"))
+}
+
+fn is_github_agent(source: &HarnessSource) -> bool {
+    let path = normalized_path(source);
+    (path.starts_with(".github/agents/") || path.contains("/.github/agents/"))
+        && file_name(source).is_some_and(|name| name.ends_with(".agent.md"))
 }
 
 #[cfg(test)]
@@ -959,5 +1084,34 @@ mod tests {
             .unwrap();
 
         assert_eq!(output.findings[0].rule_id, "HL115");
+    }
+
+    #[test]
+    fn markdown_agent_profiles_follow_provider_schemas() {
+        let sources = [
+            source(
+                ".claude/agents/reviewer.md",
+                HarnessSourceKind::Agents,
+                "---\nname: Reviewer\ndescription: Review code\n---\n\nDo reviews.\n".to_owned(),
+            ),
+            source(
+                ".github/agents/helper.agent.md",
+                HarnessSourceKind::Agents,
+                "---\nname: Helper\n---\n".to_owned(),
+            ),
+        ];
+        let config = HarnessLensConfig::default();
+        let output = InstructionConventionsPlugin
+            .analyze(&context(&sources, &config))
+            .unwrap();
+
+        assert_eq!(
+            output
+                .findings
+                .iter()
+                .map(|finding| finding.rule_id.as_str())
+                .collect::<Vec<_>>(),
+            ["HL122", "HL121", "HL123"]
+        );
     }
 }

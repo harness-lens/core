@@ -55,6 +55,15 @@ Harness Lens also discovers provider rule and agent Markdown under
 and `.github/agents/`. `.agents/rules/` is recognized as an ecosystem extension,
 not as an OpenAI-defined directory.
 
+## Markdown agent profiles
+
+- `HL120` reports invalid or missing YAML frontmatter in Claude and GitHub
+  custom-agent profiles.
+- `HL121` reports a missing or empty `description`.
+- `HL122` validates Claude's required lowercase, hyphenated agent `name`.
+- `HL123` reports an empty Markdown instruction body.
+- `HL124` reports a GitHub agent prompt over its 30,000-character limit.
+
 ## Primary sources
 
 - [OpenAI: Custom instructions with AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
@@ -64,5 +73,7 @@ not as an OpenAI-defined directory.
 - [OpenAI: Rules](https://learn.chatgpt.com/docs/agent-configuration/rules)
 - [Anthropic: How Claude remembers your project](https://code.claude.com/docs/en/memory)
 - [Anthropic: Extend Claude with skills](https://code.claude.com/docs/en/slash-commands)
+- [Anthropic: Create custom subagents](https://code.claude.com/docs/en/sub-agents)
 - [GitHub: Adding repository custom instructions](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions)
+- [GitHub: Custom agents configuration](https://docs.github.com/en/copilot/reference/custom-agents-configuration)
 - [Agent Skills specification](https://agentskills.io/specification)
