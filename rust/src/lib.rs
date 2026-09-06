@@ -8,8 +8,10 @@ mod conventions;
 mod engine;
 mod evaluation;
 mod exact_duplicates;
+pub mod lexical;
 mod model;
 mod plugin;
+pub mod providers;
 pub mod statistics;
 mod text_analysis;
 

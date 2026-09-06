@@ -695,6 +695,9 @@ pub struct AnalysisReport {
     /// Attributed comparisons; empty means no sufficient runtime evidence.
     #[serde(default)]
     pub effectiveness: Vec<EffectivenessAssessment>,
+    /// Lexical heuristic evidence, never included in deterministic scores.
+    #[serde(default)]
+    pub lexical: crate::lexical::LexicalReport,
 }
 
 /// Whether the adapter could inspect every relevant path it encountered.

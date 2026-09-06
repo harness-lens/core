@@ -19,6 +19,8 @@ pub struct HarnessLensConfig {
     pub integrations: Vec<IntegrationConfig>,
     /// Resource and cost evaluation policy.
     pub evaluation: EvaluationConfig,
+    /// Bounded lexical edit similarity; separate from deterministic rules.
+    pub lexical: crate::lexical::LexicalConfig,
 }
 
 impl Default for HarnessLensConfig {
@@ -29,6 +31,7 @@ impl Default for HarnessLensConfig {
             plugins: Vec::new(),
             integrations: Vec::new(),
             evaluation: EvaluationConfig::default(),
+            lexical: crate::lexical::LexicalConfig::default(),
         }
     }
 }
