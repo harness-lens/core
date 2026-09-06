@@ -14,9 +14,9 @@ use crate::evaluation::EvaluationPlugin;
 use crate::exact_duplicates::ExactDuplicatePlugin;
 use crate::text_analysis::{IncongruencePlugin, RedundancyPlugin, RepetitionPlugin};
 use crate::{
-    AnalysisReport, Finding, HarnessLensConfig, HarnessSource, Metric, Plugin, PluginContext,
-    PluginExecution, PluginExecutionStatus, PluginMetadata, PluginOutput, Score, ScoreCategory,
-    ScoreMethod, ScoreSummary, Severity,
+    AnalysisReport, ConfiguredInputCost, Finding, HarnessLensConfig, HarnessSource, InclusionEdge,
+    InclusionStatus, Metric, Plugin, PluginContext, PluginExecution, PluginExecutionStatus,
+    PluginMetadata, PluginOutput, Score, ScoreCategory, ScoreMethod, ScoreSummary, Severity,
 };
 
 const INVENTORY_PLUGIN_ID: &str = "harness-lens.inventory";
@@ -177,16 +177,57 @@ impl AnalysisEngine {
             }
         }
 
+        let mut source_records = sources
+            .iter()
+            .map(HarnessSource::record)
+            .collect::<Vec<_>>();
+        for source in &mut source_records {
+            source.findings_count = findings
+                .iter()
+                .filter(|finding| {
+                    finding.path.as_ref() == Some(&source.path)
+                        && finding.severity != Severity::Pass
+                })
+                .count();
+            source.configured_input_cost = metrics
+                .iter()
+                .find(|metric| {
+                    metric.name == "harness.source.input_cost_per_invocation"
+                        && metric.path.as_ref() == Some(&source.path)
+                })
+                .map(|metric| ConfiguredInputCost {
+                    value: metric.value,
+                    unit: metric.unit.clone().unwrap_or_default(),
+                    reference: metric.reference.clone(),
+                    method: ScoreMethod::Heuristic,
+                });
+        }
+        let inclusions = source_records
+            .iter()
+            .map(|source| InclusionEdge {
+                source: None,
+                target: source.path.clone(),
+                depth: source.inclusion_depth,
+                status: InclusionStatus::Resolved,
+                span: None,
+                method: ScoreMethod::Deterministic,
+                assumptions: Vec::new(),
+            })
+            .collect();
+
         AnalysisReport {
             schema_version: 1,
             root,
             completeness: Default::default(),
-            sources: sources.iter().map(HarnessSource::record).collect(),
+            sources: source_records,
+            inclusions,
             findings,
             metrics,
             score_summary: summarize_scores(&scores),
             scores,
             plugin_executions: executions,
+            runtime: Default::default(),
+            effectiveness: Vec::new(),
         }
     }
 }
@@ -329,7 +370,7 @@ impl Plugin for InventoryPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PluginConfig, PluginError};
+    use crate::{HarnessSourceKind, PluginConfig, PluginError, RuntimeAvailability, RuntimeMode};
 
     struct TestPlugin;
 
@@ -392,6 +433,39 @@ mod tests {
             report.plugin_executions[0].status,
             PluginExecutionStatus::Unavailable
         );
+    }
+
+    #[test]
+    fn report_has_one_safe_enriched_record_per_source() {
+        let secret = "SECRET_SENTINEL 😀\nsecond line\n";
+        let source = HarnessSource {
+            path: PathBuf::from("AGENTS.md"),
+            kind: HarnessSourceKind::Instructions,
+            scope: PathBuf::new(),
+            content: secret.to_owned(),
+        };
+        let report = AnalysisEngine::default().analyze(
+            PathBuf::from("."),
+            vec![source],
+            Vec::new(),
+            &HarnessLensConfig::default(),
+        );
+
+        let record = &report.sources[0];
+        assert_eq!(record.bytes, secret.len());
+        assert_eq!(record.characters, secret.chars().count());
+        assert_eq!(record.lines, 2);
+        assert_eq!(record.estimated_tokens.method, ScoreMethod::Heuristic);
+        assert_eq!(report.inclusions[0].status, InclusionStatus::Resolved);
+        assert_eq!(report.runtime.mode, RuntimeMode::Off);
+        assert_eq!(report.runtime.availability, RuntimeAvailability::Off);
+        assert!(report.effectiveness.is_empty());
+
+        let serialized = serde_json::to_string(&report).unwrap();
+        assert!(!serialized.contains("SECRET_SENTINEL"));
+        assert!(!serialized.contains("arguments"));
+        assert!(!serialized.contains("transcript"));
+        assert!(!serialized.contains("stderr"));
     }
 
     #[test]

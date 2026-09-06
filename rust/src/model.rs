@@ -50,17 +50,35 @@ impl HarnessSource {
     /// Produces the content-free representation used in public reports.
     #[must_use]
     pub fn record(&self) -> SourceRecord {
+        let characters = self.content.chars().count();
         SourceRecord {
             path: self.path.clone(),
             kind: self.kind,
             scope: self.scope.clone(),
             bytes: self.content.len(),
+            characters,
+            lines: self.content.lines().count(),
+            inclusion_depth: 0,
+            estimated_tokens: TokenEstimate {
+                value: characters.div_ceil(4),
+                tokenizer: "unicode_scalar_div_4".to_owned(),
+                basis: "Unicode scalar count divided by four".to_owned(),
+                method: ScoreMethod::Heuristic,
+            },
+            configured_input_cost: None,
+            findings_count: 0,
+            provenance: vec![ProvenanceLink {
+                relationship: ProvenanceRelationship::DirectDiscovery,
+                path: self.path.clone(),
+                span: None,
+                method: ScoreMethod::Deterministic,
+            }],
         }
     }
 }
 
 /// Content-free source metadata safe for reports and integrations.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SourceRecord {
     /// Path relative to the scanned root.
     pub path: PathBuf,
@@ -70,6 +88,131 @@ pub struct SourceRecord {
     pub scope: PathBuf,
     /// Loaded UTF-8 byte count.
     pub bytes: usize,
+    /// Unicode scalar count.
+    #[serde(default)]
+    pub characters: usize,
+    /// Logical line count.
+    #[serde(default)]
+    pub lines: usize,
+    /// Shortest known inclusion depth from direct workspace discovery.
+    #[serde(default)]
+    pub inclusion_depth: usize,
+    /// Explicitly labeled token estimate.
+    #[serde(default)]
+    pub estimated_tokens: TokenEstimate,
+    /// Configured static input cost, separate from observed runtime cost.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configured_input_cost: Option<ConfiguredInputCost>,
+    /// Non-pass findings attributed to this file.
+    #[serde(default)]
+    pub findings_count: usize,
+    /// Safe content-free paths explaining discovery or inclusion.
+    #[serde(default)]
+    pub provenance: Vec<ProvenanceLink>,
+}
+
+/// Explainable token estimate for one source.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TokenEstimate {
+    /// Estimated token count.
+    pub value: usize,
+    /// Stable estimator or tokenizer identifier.
+    pub tokenizer: String,
+    /// Human-readable estimator basis.
+    pub basis: String,
+    /// Method classification; estimates are normally heuristic.
+    pub method: ScoreMethod,
+}
+
+impl Default for TokenEstimate {
+    fn default() -> Self {
+        Self {
+            value: 0,
+            tokenizer: "unknown".to_owned(),
+            basis: "not supplied".to_owned(),
+            method: ScoreMethod::Heuristic,
+        }
+    }
+}
+
+/// Configured static context cost for one harness invocation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ConfiguredInputCost {
+    /// Cost amount per invocation.
+    pub value: f64,
+    /// Unit including currency, such as `USD/invocation`.
+    pub unit: String,
+    /// Caller-supplied pricing reference, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
+    /// Method classification inherited from the token estimate and formula.
+    pub method: ScoreMethod,
+}
+
+/// How a source entered the bounded analysis graph.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProvenanceRelationship {
+    /// Source matched deterministic workspace discovery.
+    DirectDiscovery,
+    /// Another source explicitly referenced this source.
+    Reference,
+    /// Source was discovered as a skill dependency.
+    SkillDependency,
+}
+
+/// Content-free provenance location.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ProvenanceLink {
+    /// Relationship represented by this link.
+    pub relationship: ProvenanceRelationship,
+    /// Source or target path relative to the scan root.
+    pub path: PathBuf,
+    /// UTF-8 byte range containing the reference, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<TextSpan>,
+    /// Method used to identify this link.
+    pub method: ScoreMethod,
+}
+
+/// Resolution state for one bounded inclusion edge.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InclusionStatus {
+    /// Target resolved inside the scan root.
+    Resolved,
+    /// Referenced target does not exist.
+    Missing,
+    /// Edge closes an inclusion cycle.
+    Cycle,
+    /// Target matched an explicit ignore rule.
+    Ignored,
+    /// Target leaves the scan root.
+    OutOfRoot,
+    /// Target could not be inspected safely.
+    Unavailable,
+}
+
+/// Content-free directed edge in the harness inclusion graph.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct InclusionEdge {
+    /// Referring source; absent for direct workspace discovery.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<PathBuf>,
+    /// Referenced or discovered target path.
+    pub target: PathBuf,
+    /// Inclusion depth assigned by bounded traversal.
+    pub depth: usize,
+    /// Observable resolution state.
+    pub status: InclusionStatus,
+    /// UTF-8 byte range containing the reference, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span: Option<TextSpan>,
+    /// Method used to identify this edge.
+    pub method: ScoreMethod,
+    /// Declared assumptions for heuristic edges.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub assumptions: Vec<String>,
 }
 
 /// Severity attached to an evidence-bearing finding.
@@ -179,10 +322,11 @@ pub enum ScoreCategory {
 }
 
 /// How a normalized score was produced.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScoreMethod {
     /// Exact rule with no estimated uncertainty.
+    #[default]
     Deterministic,
     /// Explainable rule-of-thumb with explicit evidence.
     Heuristic,
@@ -335,6 +479,191 @@ pub struct ScoreSummary {
     pub by_category: BTreeMap<ScoreCategory, f64>,
 }
 
+/// Runtime collection mode reported by an adapter.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeMode {
+    /// Runtime collection is disabled.
+    #[default]
+    Off,
+    /// Adapter captured aggregate evidence from an opt-in live source.
+    Live,
+    /// Adapter read a canonical aggregate snapshot without process launch.
+    Snapshot,
+}
+
+/// Availability of optional runtime evidence.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeAvailability {
+    /// Runtime evidence is disabled.
+    #[default]
+    Off,
+    /// Requested runtime evidence is complete for its declared window.
+    Ready,
+    /// Some bounded runtime evidence is available and limitations are visible.
+    Partial,
+    /// Collection failed without invalidating deterministic analysis.
+    Failed,
+}
+
+/// Sanitized terminal state of one observed tool call.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeObservationStatus {
+    /// Tool call completed successfully.
+    Success,
+    /// Tool call returned an error.
+    Error,
+    /// Tool call exceeded a declared time bound.
+    Timeout,
+    /// Tool call was cancelled.
+    Cancelled,
+}
+
+/// Stable runtime error class that cannot contain raw stderr or output.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuntimeErrorClass {
+    /// Executable, snapshot, or integration was unavailable.
+    Unavailable,
+    /// Operation exceeded its time bound.
+    Timeout,
+    /// Access was denied.
+    PermissionDenied,
+    /// Aggregate or observation data was invalid.
+    InvalidData,
+    /// Network operation failed.
+    Network,
+    /// Tool returned a non-success result without safe detail.
+    ToolFailure,
+    /// Failure could not be classified safely.
+    Unknown,
+}
+
+/// Inclusive runtime comparison window identity.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ObservationWindow {
+    /// Stable window identifier or normalized start timestamp.
+    pub start: String,
+    /// Stable window identifier or normalized end timestamp.
+    pub end: String,
+}
+
+/// Sanitized cost attributed to one runtime observation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ObservedCost {
+    /// Non-negative cost amount.
+    pub value: f64,
+    /// Currency or billing unit.
+    pub unit: String,
+    /// Whether token or pricing inputs were estimated.
+    pub estimated: bool,
+}
+
+/// Evidence declaration shared by runtime and effectiveness records.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EvidenceDescriptor {
+    /// Method used to produce the record.
+    pub method: ScoreMethod,
+    /// Safe assumptions required by heuristic or probabilistic methods.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub assumptions: Vec<String>,
+    /// Number of observations behind a statistical result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sample_size: Option<usize>,
+    /// Prior and interval method for probabilistic results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uncertainty: Option<ConfidenceEstimate>,
+}
+
+/// One bounded observation containing no raw arguments, output, transcript, or stderr.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct RuntimeObservation {
+    /// Stable tool identity.
+    pub tool: String,
+    /// Safe category used for aggregate filters.
+    pub category: String,
+    /// Sanitized terminal status.
+    pub status: RuntimeObservationStatus,
+    /// Wall-clock duration in microseconds.
+    pub duration_micros: u64,
+    /// Number of retries attributed to this observation.
+    pub retry_count: u32,
+    /// Optional observed cost, separate from static context estimates.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<ObservedCost>,
+    /// Stable error class; absent for successful observations.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<RuntimeErrorClass>,
+    /// Safe model identity, when attributable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Safe skill, configuration, or harness identity, when attributable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_identity: Option<String>,
+    /// Immutable revision required for attributed comparisons.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+    /// Observation time window.
+    pub window: ObservationWindow,
+    /// Declared evidence method and assumptions.
+    pub evidence: EvidenceDescriptor,
+}
+
+/// Observable optional runtime section of a deterministic report.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct RuntimeReport {
+    /// Consent-controlled collection mode.
+    pub mode: RuntimeMode,
+    /// Runtime evidence availability.
+    pub availability: RuntimeAvailability,
+    /// Sanitized bounded observations.
+    #[serde(default)]
+    pub observations: Vec<RuntimeObservation>,
+    /// Total observations before pagination or bounding.
+    pub total_observations: usize,
+    /// Opaque safe continuation token, when more observations exist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    /// Stable failure classes observed while collecting optional evidence.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub issues: Vec<RuntimeErrorClass>,
+}
+
+/// Conservative direction for an attributed before/after comparison.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EffectivenessState {
+    /// Identity, revision, window, sample, or uncertainty was insufficient.
+    InsufficientEvidence,
+    /// Declared thresholds classify the result as improving.
+    Improving,
+    /// Declared thresholds classify the result as stable.
+    Stable,
+    /// Declared thresholds classify the result as degrading.
+    Degrading,
+}
+
+/// Attributed before/after assessment without a fabricated normalized file score.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EffectivenessAssessment {
+    /// Safe file, skill, or configuration identity.
+    pub asset_identity: String,
+    /// Immutable current revision.
+    pub revision: String,
+    /// Baseline observation window.
+    pub baseline: ObservationWindow,
+    /// Current observation window.
+    pub current: ObservationWindow,
+    /// Conservative comparison result.
+    pub state: EffectivenessState,
+    /// Named metric deltas with documented units supplied by the adapter.
+    pub deltas: BTreeMap<String, f64>,
+    /// Declared comparison method, samples, uncertainty, and assumptions.
+    pub evidence: EvidenceDescriptor,
+}
+
 /// Complete provider-neutral analysis result.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisReport {
@@ -347,6 +676,9 @@ pub struct AnalysisReport {
     pub completeness: ScanCompleteness,
     /// Content-free discovered source records.
     pub sources: Vec<SourceRecord>,
+    /// Bounded, content-free discovery and reference graph.
+    #[serde(default)]
+    pub inclusions: Vec<InclusionEdge>,
     /// Evidence-bearing findings.
     pub findings: Vec<Finding>,
     /// Raw deterministic measurements.
@@ -357,6 +689,12 @@ pub struct AnalysisReport {
     pub score_summary: ScoreSummary,
     /// Plugin execution trace for observability.
     pub plugin_executions: Vec<PluginExecution>,
+    /// Optional sanitized runtime evidence; defaults to disabled.
+    #[serde(default)]
+    pub runtime: RuntimeReport,
+    /// Attributed comparisons; empty means no sufficient runtime evidence.
+    #[serde(default)]
+    pub effectiveness: Vec<EffectivenessAssessment>,
 }
 
 /// Whether the adapter could inspect every relevant path it encountered.
