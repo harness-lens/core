@@ -9,7 +9,7 @@ provider metadata/report/merge contracts. SDK adapters, Language Server provider
 transport, and editor services are separate pending owning-repository work.
 This draft is not ready to merge or use as an accepted downstream dependency.
 
-## Local evidence — 2026-09-06
+## Initial local evidence — 2026-09-06
 
 Node 24.18.0, npm 11.16.0, installed Rust stable 1.97.1.
 
@@ -37,29 +37,37 @@ independent full matrix over every binary string of length zero through five
 at budgets zero through five. It does not verify Unicode dependencies, the
 full crate, serialization, or provider merging.
 
+## Lockfile correction
+
+The initial PR omitted the three pinned Unicode dependencies from the committed
+lockfile. MSRV testing rejected the outdated lockfile; the stable build generated
+a replacement, then packaging rejected the resulting dirty worktree.
+
+Cargo regenerated `rust/Cargo.lock` from registry metadata, including the pinned
+Unicode crates and their `tinyvec` dependencies. Existing dependency versions
+are preserved. This fetched registry metadata only; it did not download crate
+source, compile dependencies, or install toolchains or external providers.
+Stable Clippy and tests now also use `--locked`, so all dependency-resolving CI
+checks enforce the committed graph. Packaging retains its clean-worktree check.
+
 ## Reviewer verification
 
-On a development machine authorized to fetch dependencies, regenerate and review
-the lockfile before running locked checks. `rust/Cargo.lock` currently predates
-the three pinned Unicode dependencies in `rust/Cargo.toml`; the Rust 1.85 CI job
-uses `--locked` and requires that lockfile update. Do not hand-author checksums
-or weaken the CI lockfile check.
+Use a clean checkout of the PR with the committed lockfile. No lockfile
+regeneration is required for normal verification.
 
 From `rust/`, with stable and Rust 1.85.1 available:
 
 ```bash
-cargo generate-lockfile
-git diff -- Cargo.lock
 cargo fmt --all --check
 cargo clippy --all-targets --all-features --locked -- -D warnings
 cargo test --all-features --locked
 cargo +1.85.1 test --all-features --locked
-cargo package --locked --allow-dirty
+cargo package --locked
+git diff --exit-code -- Cargo.lock
 ```
 
-`--allow-dirty` permits package verification while the generated lockfile is
-under review. Commit the reviewed lockfile and any required fixes, then repeat
-`cargo package --locked` on the clean commit. Packaging does not publish.
+Packaging does not publish. Keep `--locked` and the clean-worktree requirement
+enabled so local checks match CI.
 
 From the repository root:
 
@@ -76,7 +84,7 @@ git diff --check
 - Verify the pinned case-fold library license and Unicode table version against
   its source; complete the pending entry in
   [the lexical prior-art note](prior-art/lexical-similarity.md).
-- Resolve dependency/lockfile issues, compile the complete crate, and fix any
+- Verify the complete crate against the committed lockfile, and fix any
   compiler, Clippy, test, packaging, or MSRV failures before acceptance.
 - Review provider bounds, content-free mapping, fingerprint conflicts, and stale
   snapshot rules. Probabilistic contributions are explicitly rejected until a
