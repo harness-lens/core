@@ -12,6 +12,20 @@ permissions:
   contents: read
 
 jobs:
+  rust-msrv:
+    name: Rust 1.85 compatibility
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@1.85.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo test --all-features --locked
+
   typescript:
     runs-on: ubuntu-latest
     strategy:

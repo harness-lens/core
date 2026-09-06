@@ -238,11 +238,11 @@ fn normalize_exact(text: &str) -> Option<String> {
         .or_else(|| text.strip_prefix("+ "))
     {
         text = rest.trim_start();
-    } else if let Some(index) = text.find(". ")
-        && text[..index]
+    } else if let Some(index) = text.find(". ").filter(|index| {
+        text[..*index]
             .chars()
             .all(|character| character.is_ascii_digit())
-    {
+    }) {
         text = text[index + 2..].trim_start();
     }
 

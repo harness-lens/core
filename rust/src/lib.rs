@@ -18,10 +18,13 @@ pub use config::{
 };
 pub use engine::{AnalysisEngine, RegistrationError};
 pub use model::{
-    AnalysisReport, ConfidenceEstimate, Finding, FindingLocation, HarnessSource, HarnessSourceKind,
-    IncompleteReason, Metric, PluginExecution, PluginExecutionStatus, ScanCompleteness,
-    ScanSummary, Score, ScoreCategory, ScoreError, ScoreMethod, ScoreSummary, Severity,
-    SourceRecord, TextSpan,
+    AnalysisReport, ConfidenceEstimate, ConfiguredInputCost, EffectivenessAssessment,
+    EffectivenessState, EvidenceDescriptor, Finding, FindingLocation, HarnessSource,
+    HarnessSourceKind, InclusionEdge, InclusionStatus, IncompleteReason, Metric, ObservationWindow,
+    ObservedCost, PluginExecution, PluginExecutionStatus, ProvenanceLink, ProvenanceRelationship,
+    RuntimeAvailability, RuntimeErrorClass, RuntimeMode, RuntimeObservation,
+    RuntimeObservationStatus, RuntimeReport, ScanCompleteness, ScanSummary, Score, ScoreCategory,
+    ScoreError, ScoreMethod, ScoreSummary, Severity, SourceRecord, TextSpan, TokenEstimate,
 };
 pub use plugin::{
     IntegrationError, Plugin, PluginContext, PluginError, PluginMetadata, PluginOutput, ReportSink,
