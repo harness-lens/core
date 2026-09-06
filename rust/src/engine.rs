@@ -228,6 +228,7 @@ impl AnalysisEngine {
             plugin_executions: executions,
             runtime: Default::default(),
             effectiveness: Vec::new(),
+            lexical: crate::lexical::analyze(&sources, &config.lexical),
         }
     }
 }
