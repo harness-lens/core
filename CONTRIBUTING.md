@@ -1,17 +1,34 @@
 > SPDX-License-Identifier: MPL-2.0
 > Copyright © 2026 Cristian Camargo Filho
 
-# Contributing
+# How to contribute
+
+Read the central [ecosystem contribution flow](https://github.com/harness-lens/harness-lens/blob/main/docs/architecture.md#how-to-contribute),
+[architecture rules](https://github.com/harness-lens/harness-lens/blob/main/docs/architecture.md#architecture-rules),
+and [LSP-visible rule path](https://github.com/harness-lens/harness-lens/blob/main/docs/architecture.md#adding-an-lsp-visible-rule).
+Core owns report contracts, findings, scores, and rule behavior. Start rule work
+with the [rule index](https://github.com/harness-lens/core/blob/main/docs/rules.md)
+and [Core architecture](https://github.com/harness-lens/core/blob/main/docs/architecture.md).
 
 Use Node.js 20 or newer and npm 11.
 
 ```bash
-npm install
+npm ci
 npm test
 npm run check
 ```
 
 Keep validation deterministic. New rules need stable IDs, evidence, tests, and documentation. Do not let optional AI output affect findings or scores.
+
+Also verify the Rust reference engine:
+
+```bash
+cd rust
+cargo fmt --check
+cargo clippy --all-targets --all-features --locked -- -D warnings
+cargo test --all-features --locked
+cargo package --locked
+```
 
 ## Licensing contributions
 
