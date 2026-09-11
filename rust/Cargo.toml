@@ -4,7 +4,7 @@
 [package]
 name = "harness-lens-core"
 description = "Provider-neutral domain and analysis engine for Harness Lens"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Cristian Camargo Filho <ccf@cdone.com.br>"]
