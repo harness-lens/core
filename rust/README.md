@@ -15,7 +15,8 @@ inclusion edges expose resolved, missing, cyclic, ignored, out-of-root, and
 unavailable states.
 
 Provider-neutral runtime records contain only tool/category identity, status,
-duration, retry count, attributed cost, stable error class, model/asset/revision
+duration, retry count, attributed cost, optional measured or explicitly
+estimated per-turn token counts, stable error class, model/asset/revision
 identity, time window, method, assumptions, sample size, and uncertainty. Raw
 arguments, output, transcripts, credentials, source, and stderr have no report
 fields. Runtime defaults off and cannot alter deterministic findings or scores.
@@ -23,7 +24,8 @@ Effectiveness records require attributed revisions and comparison windows;
 insufficient evidence remains an explicit state, never a fabricated file score.
 
 Action-trace schema version 1 adds stable session/order identity, missing-safe
-optional measurements, explicit completeness, and bounded continuation. Graph
+optional measurements, consistent input/output/total token usage, explicit
+completeness, and bounded continuation. Graph
 schema version 1 keeps proven static relationships, possible paths, and observed
 flow distinct. Observed edges always declare one width unit, denominator, share,
 sample size, window, method, and bounded provenance. Cycles use repeated layered

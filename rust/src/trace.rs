@@ -118,6 +118,47 @@ pub struct ActionIdentity {
     pub category: String,
 }
 
+/// Provider-neutral token usage attributed to one observed turn.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ObservedTokenUsage {
+    /// Prompt or input tokens, when supplied by the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u64>,
+    /// Completion or output tokens, when supplied by the source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u64>,
+    /// Cached input tokens, when supplied; this is a subset of input tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u64>,
+    /// Total tokens charged to the turn before any cache discount.
+    pub total_tokens: u64,
+    /// Whether any token count was estimated instead of measured by the source.
+    pub estimated: bool,
+}
+
+impl ObservedTokenUsage {
+    fn validate(&self) -> Result<(), TraceValidationError> {
+        if self
+            .cached_input_tokens
+            .is_some_and(|cached| self.input_tokens.is_none_or(|input| cached > input))
+        {
+            return Err(TraceValidationError::InvalidMetric);
+        }
+        match (self.input_tokens, self.output_tokens) {
+            (Some(input), Some(output)) if input.checked_add(output) != Some(self.total_tokens) => {
+                Err(TraceValidationError::InvalidMetric)
+            }
+            (Some(input), None) if input > self.total_tokens => {
+                Err(TraceValidationError::InvalidMetric)
+            }
+            (None, Some(output)) if output > self.total_tokens => {
+                Err(TraceValidationError::InvalidMetric)
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 /// One ordered action containing no prompt, arguments, output, transcript, or stderr.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ActionObservation {
@@ -143,6 +184,9 @@ pub struct ActionObservation {
     /// Optional observed cost, separate from static context estimates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<ObservedCost>,
+    /// Optional measured or explicitly estimated token usage for this turn.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_usage: Option<ObservedTokenUsage>,
     /// Stable error class; absent for successful observations.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_class: Option<RuntimeErrorClass>,
@@ -190,6 +234,9 @@ impl ActionObservation {
                 return Err(TraceValidationError::InvalidMetric);
             }
             validate_identifier("cost unit", &cost.unit)?;
+        }
+        if let Some(token_usage) = &self.token_usage {
+            token_usage.validate()?;
         }
         if let Some(location) = &self.location {
             location.validate()?;
@@ -466,6 +513,13 @@ mod tests {
             duration_micros: Some(10),
             retry_count: Some(0),
             cost: None,
+            token_usage: Some(ObservedTokenUsage {
+                input_tokens: Some(80),
+                output_tokens: Some(40),
+                cached_input_tokens: Some(20),
+                total_tokens: 120,
+                estimated: false,
+            }),
             error_class: None,
             model: None,
             asset_identity: Some("AGENTS.md".to_owned()),
@@ -499,7 +553,17 @@ mod tests {
         let decoded: ActionTrace = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded, trace);
         assert_eq!(decoded.observations[0].id, "obs-1");
-        for forbidden in ["arguments", "output", "prompt", "stderr", "transcript"] {
+        assert_eq!(
+            decoded.observations[0].token_usage.unwrap().total_tokens,
+            120
+        );
+        for forbidden in [
+            "\"arguments\"",
+            "\"output\"",
+            "\"prompt\"",
+            "\"stderr\"",
+            "\"transcript\"",
+        ] {
             assert!(!encoded.contains(forbidden));
         }
     }
@@ -551,5 +615,27 @@ mod tests {
 
         value.evidence.method = ScoreMethod::Probabilistic;
         assert_eq!(value.validate(), Err(TraceValidationError::InvalidEvidence));
+    }
+
+    #[test]
+    fn token_usage_requires_consistent_totals_and_cache_counts() {
+        let mut value = observation("obs-1", 1);
+        value.token_usage = Some(ObservedTokenUsage {
+            input_tokens: Some(80),
+            output_tokens: Some(41),
+            cached_input_tokens: Some(20),
+            total_tokens: 120,
+            estimated: false,
+        });
+        assert_eq!(value.validate(), Err(TraceValidationError::InvalidMetric));
+
+        value.token_usage = Some(ObservedTokenUsage {
+            input_tokens: Some(80),
+            output_tokens: Some(40),
+            cached_input_tokens: Some(81),
+            total_tokens: 120,
+            estimated: false,
+        });
+        assert_eq!(value.validate(), Err(TraceValidationError::InvalidMetric));
     }
 }
