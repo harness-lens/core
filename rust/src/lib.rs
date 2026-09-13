@@ -40,5 +40,6 @@ pub use plugin::{
 };
 pub use trace::{
     ACTION_TRACE_SCHEMA_VERSION, ActionIdentity, ActionObservation, ActionTrace,
-    CompletenessReason, EvidenceCompleteness, EvidenceLocation, TraceValidationError,
+    CompletenessReason, EvidenceCompleteness, EvidenceLocation, ObservedTokenUsage,
+    TraceValidationError,
 };

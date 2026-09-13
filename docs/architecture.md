@@ -16,7 +16,9 @@ discovery → safe loading → Markdown normalization → deterministic validati
 Rules emit evidence-bearing findings. Metrics that require a reference use `not-evaluated` when none is provided. Structural quality is not presented as proof of behavioral effectiveness.
 
 Ordered action traces and relationship graphs are separate versioned contracts.
-Trace records expose stable session order and only content-safe identities.
+Trace records expose stable session order, optional validated token usage, and
+only content-safe identities. Cached input remains a subset of input tokens,
+and missing token evidence never becomes zero usage.
 Relationship graphs label static, possible, and observed semantics explicitly.
 Observed-flow renderers may duplicate one logical node by sequence layer to show
 cycles, but every edge must retain its measured unit, denominator, share, sample
