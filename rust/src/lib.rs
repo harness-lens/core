@@ -8,17 +8,24 @@ mod conventions;
 mod engine;
 mod evaluation;
 mod exact_duplicates;
+pub mod graph;
 pub mod lexical;
 mod model;
 mod plugin;
 pub mod providers;
 pub mod statistics;
 mod text_analysis;
+pub mod trace;
 
 pub use config::{
     DiscoveryConfig, EvaluationConfig, HarnessLensConfig, IntegrationConfig, PluginConfig,
 };
 pub use engine::{AnalysisEngine, RegistrationError};
+pub use graph::{
+    GraphEdge, GraphFilters, GraphKind, GraphLimits, GraphNode, GraphNodeKind, GraphProvenance,
+    GraphRelationship, GraphValidationError, RELATIONSHIP_GRAPH_SCHEMA_VERSION, RelationshipGraph,
+    WeightedEdgeMetric,
+};
 pub use model::{
     AnalysisReport, ConfidenceEstimate, ConfiguredInputCost, EffectivenessAssessment,
     EffectivenessState, EvidenceDescriptor, Finding, FindingLocation, HarnessSource,
@@ -30,4 +37,8 @@ pub use model::{
 };
 pub use plugin::{
     IntegrationError, Plugin, PluginContext, PluginError, PluginMetadata, PluginOutput, ReportSink,
+};
+pub use trace::{
+    ACTION_TRACE_SCHEMA_VERSION, ActionIdentity, ActionObservation, ActionTrace,
+    CompletenessReason, EvidenceCompleteness, EvidenceLocation, TraceValidationError,
 };
