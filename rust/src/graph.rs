@@ -30,6 +30,20 @@ pub enum GraphKind {
     ObservedFlow,
 }
 
+/// Whether one graph contains enough evidence to render measured relationships.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphAvailability {
+    /// Measured edges are available.
+    Ready,
+    /// Complete evidence contains no matching nodes or edges.
+    Empty,
+    /// Evidence exists but cannot establish a transition.
+    InsufficientEvidence,
+    /// Requested evidence source is disabled or unavailable.
+    Unavailable,
+}
+
 /// Stable semantic category for graph nodes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -227,6 +241,8 @@ pub struct RelationshipGraph {
     pub kind: GraphKind,
     /// Graph-wide method classification.
     pub method: ScoreMethod,
+    /// Whether enough evidence exists to render this graph.
+    pub availability: GraphAvailability,
     /// Visible completeness and truncation state.
     pub completeness: EvidenceCompleteness,
     /// Bounds applied by the producer.
@@ -297,6 +313,20 @@ impl RelationshipGraph {
         }
         self.completeness.validate()?;
         self.validate_filters()?;
+        match self.availability {
+            GraphAvailability::Ready if self.edges.is_empty() => {
+                return Err(GraphValidationError::AvailabilityMismatch);
+            }
+            GraphAvailability::Unavailable if !self.nodes.is_empty() || !self.edges.is_empty() => {
+                return Err(GraphValidationError::AvailabilityMismatch);
+            }
+            GraphAvailability::Empty | GraphAvailability::InsufficientEvidence
+                if !self.edges.is_empty() =>
+            {
+                return Err(GraphValidationError::AvailabilityMismatch);
+            }
+            _ => {}
+        }
 
         let mut ids = BTreeSet::new();
         let mut logical_layers = BTreeSet::new();
@@ -449,6 +479,8 @@ pub enum GraphValidationError {
     MissingLayer,
     /// Graph kind, relationship, method, or metric disagree.
     KindMismatch,
+    /// Availability state disagrees with visible graph data.
+    AvailabilityMismatch,
     /// Weighted metric is invalid.
     InvalidMetric,
     /// Provenance count, identity, or location is invalid.
@@ -482,6 +514,9 @@ impl fmt::Display for GraphValidationError {
             Self::MissingEndpoint => formatter.write_str("graph edge endpoint is missing"),
             Self::MissingLayer => formatter.write_str("observed-flow node has no sequence layer"),
             Self::KindMismatch => formatter.write_str("graph kind and edge semantics disagree"),
+            Self::AvailabilityMismatch => {
+                formatter.write_str("graph availability and visible data disagree")
+            }
             Self::InvalidMetric => formatter.write_str("invalid weighted edge metric"),
             Self::InvalidProvenance => formatter.write_str("invalid graph provenance"),
             Self::NonCanonicalOrder(kind) => {
@@ -520,6 +555,7 @@ mod tests {
             schema_version: RELATIONSHIP_GRAPH_SCHEMA_VERSION,
             kind: GraphKind::ObservedFlow,
             method: ScoreMethod::Statistical,
+            availability: GraphAvailability::Ready,
             completeness: EvidenceCompleteness::default(),
             limits: GraphLimits {
                 max_nodes: 10,
@@ -666,6 +702,7 @@ mod tests {
             schema_version: RELATIONSHIP_GRAPH_SCHEMA_VERSION,
             kind: GraphKind::ObservedFlow,
             method: ScoreMethod::Statistical,
+            availability: GraphAvailability::Unavailable,
             completeness: EvidenceCompleteness {
                 complete: false,
                 reasons: vec![crate::CompletenessReason {

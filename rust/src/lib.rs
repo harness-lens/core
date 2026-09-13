@@ -22,9 +22,9 @@ pub use config::{
 };
 pub use engine::{AnalysisEngine, RegistrationError};
 pub use graph::{
-    GraphEdge, GraphFilters, GraphKind, GraphLimits, GraphNode, GraphNodeKind, GraphProvenance,
-    GraphRelationship, GraphValidationError, RELATIONSHIP_GRAPH_SCHEMA_VERSION, RelationshipGraph,
-    WeightedEdgeMetric,
+    GraphAvailability, GraphEdge, GraphFilters, GraphKind, GraphLimits, GraphNode, GraphNodeKind,
+    GraphProvenance, GraphRelationship, GraphValidationError, RELATIONSHIP_GRAPH_SCHEMA_VERSION,
+    RelationshipGraph, WeightedEdgeMetric,
 };
 pub use model::{
     AnalysisReport, ConfidenceEstimate, ConfiguredInputCost, EffectivenessAssessment,
