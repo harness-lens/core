@@ -22,6 +22,13 @@ fields. Runtime defaults off and cannot alter deterministic findings or scores.
 Effectiveness records require attributed revisions and comparison windows;
 insufficient evidence remains an explicit state, never a fabricated file score.
 
+Action-trace schema version 1 adds stable session/order identity, missing-safe
+optional measurements, explicit completeness, and bounded continuation. Graph
+schema version 1 keeps proven static relationships, possible paths, and observed
+flow distinct. Observed edges always declare one width unit, denominator, share,
+sample size, window, method, and bounded provenance. Cycles use repeated layered
+nodes with one shared logical identity.
+
 Built-in plugins report deterministic adjacent repetition, conservative
 same-intent instruction redundancy, opposite-modal instructions, provider
 instruction-file conventions, and portable Agent Skills schema problems.
