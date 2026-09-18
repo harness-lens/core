@@ -18,7 +18,7 @@ publish = true
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml = "0.9"
-toml = "0.9"
+toml = "1.1"
 unicode-normalization = "=0.1.24"
 unicode-casefold = "=0.2.0"
 unicode-properties = "=0.1.3"
